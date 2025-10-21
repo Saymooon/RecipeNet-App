@@ -318,7 +318,7 @@ def load_all_models(config):
 # 6. Streamlit UI (메인 앱 로직)
 # ==========================================================
 st.set_page_config(layout="wide")
-st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
+st.title("🧪 레시피 예측 모델")
 
 # 모델 로드
 model, name_encoder, surrogate = load_all_models(CONFIG)
