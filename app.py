@@ -318,69 +318,65 @@ def load_all_models(config):
 # 6. Streamlit UI (메인 앱 로직)
 # ==========================================================
 
-# --- 엑셀 파일 처리 함수 ---
+# --- 엑셀 파일 처리 함수 (사용자 로직 반영) ---
 def parse_excel(uploaded_file, config):
-    """업로드된 엑셀 파일에서 Color Name, Lab, Spectrum을 추출합니다."""
+    """
+    업로드된 엑셀 파일에서 '정반사광 처리' == 'SCE'인 첫 번째 행을 찾아
+    Color Name, Lab, Spectrum을 추출합니다.
+    """
     try:
-        df = pd.read_excel(uploaded_file, header=None)
+        df = pd.read_excel(uploaded_file)
         
-        # 엑셀 형식 가정:
-        # A1: Color Name (헤더)
-        # A2: "DK MARINA BLUE" (값)
-        # B1: L* (헤더)
-        # B2: 35.72 (값)
-        # C1: a* (헤더)
-        # C2: -6.12 (값)
-        # D1: b* (헤더)
-        # D2: -24.54 (값)
-        # E1: 400[nm] (헤더)
-        # E2: 19.55 (값)
-        # ...
-        # AI1: 700[nm] (헤더)
-        # AI2: 46.82 (값)
-        
-        # 더 유연하게 처리하기 위해, 헤더(0번째 행)를 기반으로 값을 찾습니다.
-        df_header = df.iloc[0]
-        df_values = df.iloc[1]
-        
-        # 1. Color Name 추출
-        # CONFIG['name_col'] ('COLOR') 헤더를 찾습니다.
-        try:
-            name_col_index = df_header[df_header == config['name_col']].index[0]
-            color_name = df_values[name_col_index]
-            if not isinstance(color_name, str):
-                color_name = str(color_name)
-        except IndexError:
-            st.error(f"엑셀 파일 오류: '{config['name_col']}' 헤더(컬럼)를 찾을 수 없습니다.")
+        # 1. '정반사광 처리' 컬럼 확인
+        filter_col = '정반사광 처리'
+        if filter_col not in df.columns:
+            st.error(f"엑셀 파일 오류: '{filter_col}' 컬럼을 찾을 수 없습니다.")
             return None, None, None
+            
+        # 2. 'SCE'로 필터링
+        sce_df = df[df[filter_col] == 'SCE']
+        
+        # 3. 'SCE' 데이터 확인
+        if sce_df.empty:
+            st.error(f"엑셀 파일 오류: '{filter_col}' 컬럼에 'SCE' 값을 가진 행이 없습니다.")
+            return None, None, None
+            
+        # 4. 첫 번째 'SCE' 행 선택
+        data_row = sce_df.iloc[0]
+        
+        # 5. Color Name 추출 (사용자 로직: '데이터 이름' 컬럼, [4:] 슬라이싱)
+        name_col = '데이터 이름' # ⭐️ 사용자가 제공한 컬럼명
+        if name_col not in data_row.index:
+            st.error(f"엑셀 파일 오류: '{name_col}' 컬럼을 찾을 수 없습니다.")
+            return None, None, None
+        
+        color_name = str(data_row[name_col])[4:] # ⭐️ .str[4:] 처리
 
-        # 2. Lab 값 추출
+        # 6. Lab 값 추출 (CONFIG에 정의된 컬럼명 사용)
         lab_cols = config['lab_cols'] # ['L*(10°/D65)', 'a*(10°/D65)', 'b*(10°/D65)']
         lab_values = []
         for col_name in lab_cols:
-            try:
-                col_index = df_header[df_header == col_name].index[0]
-                lab_values.append(float(df_values[col_index]))
-            except IndexError:
-                st.error(f"엑셀 파일 오류: '{col_name}' 헤더(컬럼)를 찾을 수 없습니다.")
+            if col_name not in data_row.index:
+                st.error(f"엑셀 파일 오류: Lab 컬럼 '{col_name}'을(를) 찾을 수 없습니다.")
                 return None, None, None
+            try:
+                lab_values.append(float(data_row[col_name]))
             except ValueError:
-                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{df_values[col_index]}'를 숫자로 변환할 수 없습니다.")
+                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{data_row[col_name]}'를 숫자로 변환할 수 없습니다.")
                 return None, None, None
         lab_input_np = np.array(lab_values)
 
-        # 3. 스펙트럼 값 추출
+        # 7. 스펙트럼 값 추출 (CONFIG에 정의된 컬럼명 사용)
         spectrum_cols = config['spectrum_cols'] # ['400[nm]', ..., '700[nm]']
         spectrum_values = []
         for col_name in spectrum_cols:
-            try:
-                col_index = df_header[df_header == col_name].index[0]
-                spectrum_values.append(float(df_values[col_index]))
-            except IndexError:
-                st.error(f"엑셀 파일 오류: '{col_name}' 헤더(컬럼)를 찾을 수 없습니다.")
+            if col_name not in data_row.index:
+                st.error(f"엑셀 파일 오류: 스펙트럼 컬럼 '{col_name}'을(를) 찾을 수 없습니다.")
                 return None, None, None
+            try:
+                spectrum_values.append(float(data_row[col_name]))
             except ValueError:
-                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{df_values[col_index]}'를 숫자로 변환할 수 없습니다.")
+                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{data_row[col_name]}'를 숫자로 변환할 수 없습니다.")
                 return None, None, None
         spectrum_input_np = np.array(spectrum_values)
 
@@ -388,7 +384,6 @@ def parse_excel(uploaded_file, config):
 
     except Exception as e:
         st.error(f"엑셀 파일 처리 중 오류 발생: {e}")
-        st.error("엑셀 파일 형식이 올바른지 확인하세요. 첫 번째 행은 헤더, 두 번째 행은 값이어야 합니다.")
         return None, None, None
 
 # --- 메인 UI ---
@@ -407,7 +402,7 @@ if model and name_encoder and surrogate:
     uploaded_file = st.file_uploader(
         "목표 색상 엑셀 파일 업로드 (xlsx)", 
         type=["xlsx"],
-        help="첫 번째 행은 헤더(예: 'COLOR', 'L*(10°/D65)', '400[nm]' 등), 두 번째 행은 실제 값을 포함해야 합니다."
+        help="파일 내 '정반사광 처리' 컬럼의 'SCE' 행 데이터를 사용합니다."
     )
 
     # 세션 상태(Session State) 초기화
@@ -415,7 +410,7 @@ if model and name_encoder and surrogate:
         st.session_state.parsed_data = None
 
     if uploaded_file is not None:
-        # 파일이 업로드되면, 파싱 시도
+        # 파일이 업로드되면, 파싱 시도 (새로운 parse_excel 함수 사용)
         color_name, lab_np, spectrum_np = parse_excel(uploaded_file, CONFIG)
         
         if color_name is not None and lab_np is not None and spectrum_np is not None:
@@ -431,14 +426,15 @@ if model and name_encoder and surrogate:
 
     # --- 2. 업로드된 데이터 확인 ---
     if st.session_state.parsed_data is not None:
-        st.header("2. 업로드된 데이터 확인")
+        st.header("2. 업로드된 데이터 확인 (SCE 기준)")
         data = st.session_state.parsed_data
         
         col1, col2 = st.columns(2)
         
         with col1:
             st.subheader("목표 색상 정보")
-            st.text_input("Color Name", value=data['name'], disabled=True)
+            # '데이터 이름'에서 추출된 값
+            st.text_input("Color Name (from '데이터 이름'[4:])", value=data['name'], disabled=True) 
             st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{data['lab'][0]:.2f}", disabled=True)
             st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{data['lab'][1]:.2f}", disabled=True)
             st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{data['lab'][2]:.2f}", disabled=True)
@@ -450,7 +446,7 @@ if model and name_encoder and surrogate:
                 '파장 (Wavelength)': CONFIG['spectrum_cols'],
                 '값 (Value)': data['spectrum']
             })
-            st.dataframe(spectrum_df, height=300) # 높이 조절 가능
+            st.dataframe(spectrum_df, height=300)
 
         # --- 3. 예측 실행 버튼 ---
         st.header("3. 예측 실행")
@@ -470,7 +466,7 @@ if model and name_encoder and surrogate:
         st.info("⬆️ 예측을 시작하려면 엑셀 파일을 업로드해주세요.")
         
 else:
-    st.error("‼️ 모델 로딩 실패. GitHub 레파토리에 9개 파일이 모두 있는지 확인하세요.")
+    st.error("‼️ 모델 로딩 실패. GitHub 레파토리에 파일이 모두 있는지 확인하세요.")
     st.code("""
     [필수 파일 목록]
     1. app.py
@@ -478,5 +474,4 @@ else:
     3. name_encoder.pkl
     4. xgb_surrogate_2.pkl
     5. requirements.txt (openpyxl 포함 총 9줄)
-    ... (그 외 필요한 파일들)
     """)
