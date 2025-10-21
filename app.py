@@ -317,8 +317,83 @@ def load_all_models(config):
 # ==========================================================
 # 6. Streamlit UI (메인 앱 로직)
 # ==========================================================
+
+# --- 엑셀 파일 처리 함수 ---
+def parse_excel(uploaded_file, config):
+    """업로드된 엑셀 파일에서 Color Name, Lab, Spectrum을 추출합니다."""
+    try:
+        df = pd.read_excel(uploaded_file, header=None)
+        
+        # 엑셀 형식 가정:
+        # A1: Color Name (헤더)
+        # A2: "DK MARINA BLUE" (값)
+        # B1: L* (헤더)
+        # B2: 35.72 (값)
+        # C1: a* (헤더)
+        # C2: -6.12 (값)
+        # D1: b* (헤더)
+        # D2: -24.54 (값)
+        # E1: 400[nm] (헤더)
+        # E2: 19.55 (값)
+        # ...
+        # AI1: 700[nm] (헤더)
+        # AI2: 46.82 (값)
+        
+        # 더 유연하게 처리하기 위해, 헤더(0번째 행)를 기반으로 값을 찾습니다.
+        df_header = df.iloc[0]
+        df_values = df.iloc[1]
+        
+        # 1. Color Name 추출
+        # CONFIG['name_col'] ('COLOR') 헤더를 찾습니다.
+        try:
+            name_col_index = df_header[df_header == config['name_col']].index[0]
+            color_name = df_values[name_col_index]
+            if not isinstance(color_name, str):
+                color_name = str(color_name)
+        except IndexError:
+            st.error(f"엑셀 파일 오류: '{config['name_col']}' 헤더(컬럼)를 찾을 수 없습니다.")
+            return None, None, None
+
+        # 2. Lab 값 추출
+        lab_cols = config['lab_cols'] # ['L*(10°/D65)', 'a*(10°/D65)', 'b*(10°/D65)']
+        lab_values = []
+        for col_name in lab_cols:
+            try:
+                col_index = df_header[df_header == col_name].index[0]
+                lab_values.append(float(df_values[col_index]))
+            except IndexError:
+                st.error(f"엑셀 파일 오류: '{col_name}' 헤더(컬럼)를 찾을 수 없습니다.")
+                return None, None, None
+            except ValueError:
+                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{df_values[col_index]}'를 숫자로 변환할 수 없습니다.")
+                return None, None, None
+        lab_input_np = np.array(lab_values)
+
+        # 3. 스펙트럼 값 추출
+        spectrum_cols = config['spectrum_cols'] # ['400[nm]', ..., '700[nm]']
+        spectrum_values = []
+        for col_name in spectrum_cols:
+            try:
+                col_index = df_header[df_header == col_name].index[0]
+                spectrum_values.append(float(df_values[col_index]))
+            except IndexError:
+                st.error(f"엑셀 파일 오류: '{col_name}' 헤더(컬럼)를 찾을 수 없습니다.")
+                return None, None, None
+            except ValueError:
+                st.error(f"엑셀 파일 오류: '{col_name}'의 값 '{df_values[col_index]}'를 숫자로 변환할 수 없습니다.")
+                return None, None, None
+        spectrum_input_np = np.array(spectrum_values)
+
+        return color_name, lab_input_np, spectrum_input_np
+
+    except Exception as e:
+        st.error(f"엑셀 파일 처리 중 오류 발생: {e}")
+        st.error("엑셀 파일 형식이 올바른지 확인하세요. 첫 번째 행은 헤더, 두 번째 행은 값이어야 합니다.")
+        return None, None, None
+
+# --- 메인 UI ---
 st.set_page_config(layout="wide")
-st.title("🧪 레시피 예측 모델")
+st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
 
 # 모델 로드
 model, name_encoder, surrogate = load_all_models(CONFIG)
@@ -326,63 +401,82 @@ model, name_encoder, surrogate = load_all_models(CONFIG)
 if model and name_encoder and surrogate:
     st.success(f"모델 로드 완료! (안료 개수: {len(CONFIG['recipe_cols'])})")
 
-    # --- 사용자 입력 UI ---
-    st.header("1. 목표 색상 정보 입력")
+    st.header("1. 목표 색상 정보 업로드")
     
-    # 예시: 'DK MARINA BLUE'
-    color_name_input = st.text_input("Color Name", "DK MARINA BLUE")
-    
-    c1, c2, c3 = st.columns(3)
-    # L* a* b* 컬럼명을 CONFIG에서 가져옴
-    l_input = c1.number_input(f"Target {CONFIG['lab_cols'][0]}", value=35.72, format="%.2f")
-    a_input = c2.number_input(f"Target {CONFIG['lab_cols'][1]}", value=-6.12, format="%.2f")
-    b_input = c3.number_input(f"Target {CONFIG['lab_cols'][2]}", value=-24.54, format="%.2f")
-    lab_input_np = np.array([l_input, a_input, b_input])
-
-    st.header("2. 스펙트럼 정보 입력")
-    st.write(f"총 {len(CONFIG['spectrum_cols'])}개 파장대({CONFIG['spectrum_cols'][0]} ~ {CONFIG['spectrum_cols'][-1]}) 값을 쉼표(,)로 구분하여 입력하세요.")
-
-    # 예시: 'DK MARINA BLUE'의 스펙트럼
-    default_spectrum_str = (
-        "19.55, 19.24, 19.04, 18.67, 18.36, 18.30, 18.48, 18.79, 18.78, 17.78, "
-        "15.81, 13.49, 11.37, 9.76, 8.40, 7.23, 6.39, 5.69, 5.00, 4.63, 4.60, "
-        "4.68, 4.48, 4.14, 4.18, 4.85, 7.10, 12.25, 21.00, 32.86, 46.82"
+    # --- 엑셀 파일 업로더 ---
+    uploaded_file = st.file_uploader(
+        "목표 색상 엑셀 파일 업로드 (xlsx)", 
+        type=["xlsx"],
+        help="첫 번째 행은 헤더(예: 'COLOR', 'L*(10°/D65)', '400[nm]' 등), 두 번째 행은 실제 값을 포함해야 합니다."
     )
-    spectrum_str_input = st.text_area("Spectrum (쉼표로 구분)", default_spectrum_str, height=150)
 
-    # --- 예측 버튼 ---
-    if st.button("🚀 레시피 예측 실행", type="primary"):
-        try:
-            # 1. 스펙트럼 입력값 파싱
-            spectrum_values = [float(s.strip()) for s in spectrum_str_input.split(',')]
-            
-            # 2. 개수 검증
-            if len(spectrum_values) != len(CONFIG['spectrum_cols']):
-                st.error(f"스펙트럼 입력 오류: {len(CONFIG['spectrum_cols'])}개가 필요하지만 {len(spectrum_values)}개가 입력되었습니다.")
-            else:
-                spectrum_input_np = np.array(spectrum_values)
-                
-                # 3. 예측 함수 실행
-                with st.spinner('모델이 예측을 수행 중입니다...'):
-                    run_inference(
-                        model,
-                        CONFIG,
-                        surrogate,
-                        spectrum=spectrum_input_np,
-                        lab=lab_input_np,
-                        color_name=color_name_input,
-                        name_encoder=name_encoder
-                    )
-        except Exception as e:
-            st.error(f"예측 중 오류 발생: {e}")
-            st.error("입력값을 확인해주세요. (예: 스펙트럼에 숫자 아닌 값이 포함됨)")
+    # 세션 상태(Session State) 초기화
+    if 'parsed_data' not in st.session_state:
+        st.session_state.parsed_data = None
+
+    if uploaded_file is not None:
+        # 파일이 업로드되면, 파싱 시도
+        color_name, lab_np, spectrum_np = parse_excel(uploaded_file, CONFIG)
+        
+        if color_name is not None and lab_np is not None and spectrum_np is not None:
+            # 파싱 성공 시, 세션 상태에 저장
+            st.session_state.parsed_data = {
+                "name": color_name,
+                "lab": lab_np,
+                "spectrum": spectrum_np
+            }
+        else:
+            # 파싱 실패 시
+            st.session_state.parsed_data = None
+
+    # --- 2. 업로드된 데이터 확인 ---
+    if st.session_state.parsed_data is not None:
+        st.header("2. 업로드된 데이터 확인")
+        data = st.session_state.parsed_data
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader("목표 색상 정보")
+            st.text_input("Color Name", value=data['name'], disabled=True)
+            st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{data['lab'][0]:.2f}", disabled=True)
+            st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{data['lab'][1]:.2f}", disabled=True)
+            st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{data['lab'][2]:.2f}", disabled=True)
+
+        with col2:
+            st.subheader("스펙트럼 정보")
+            # 스펙트럼 데이터를 보기 좋게 DataFrame으로 변환
+            spectrum_df = pd.DataFrame({
+                '파장 (Wavelength)': CONFIG['spectrum_cols'],
+                '값 (Value)': data['spectrum']
+            })
+            st.dataframe(spectrum_df, height=300) # 높이 조절 가능
+
+        # --- 3. 예측 실행 버튼 ---
+        st.header("3. 예측 실행")
+        if st.button("🚀 레시피 예측 실행", type="primary"):
+            with st.spinner('모델이 예측을 수행 중입니다...'):
+                run_inference(
+                    model,
+                    CONFIG,
+                    surrogate,
+                    spectrum=data['spectrum'],
+                    lab=data['lab'],
+                    color_name=data['name'],
+                    name_encoder=name_encoder
+                )
+    
+    elif uploaded_file is None:
+        st.info("⬆️ 예측을 시작하려면 엑셀 파일을 업로드해주세요.")
+        
 else:
-    st.error("‼️ 모델 로딩 실패. GitHub 레파토리에 5개 파일이 모두 있는지 확인하세요.")
+    st.error("‼️ 모델 로딩 실패. GitHub 레파토리에 9개 파일이 모두 있는지 확인하세요.")
     st.code("""
     [필수 파일 목록]
-    1. app.py (지금 이 파일)
-    2. recipe_model.pth (PyTorch 모델 가중치)
-    3. name_encoder.pkl (SimpleNameEncoder 객체)
-    4. xgb_surrogate.pkl (Surrogate 모델)
-    5. requirements.txt (라이브러리 목록)
+    1. app.py
+    2. recipe_model.pth
+    3. name_encoder.pkl
+    4. xgb_surrogate_2.pkl
+    5. requirements.txt (openpyxl 포함 총 9줄)
+    ... (그 외 필요한 파일들)
     """)
