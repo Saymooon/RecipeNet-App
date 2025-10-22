@@ -388,7 +388,7 @@ def parse_excel(uploaded_file, config):
 
 # --- 메인 UI ---
 st.set_page_config(layout="wide")
-st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
+st.title("🧪 레시피 예측 모델")
 
 # 모델 로드
 model, name_encoder, surrogate = load_all_models(CONFIG)
