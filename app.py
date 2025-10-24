@@ -391,13 +391,13 @@ def parse_excel(uploaded_file, config):
 
 # --- 메인 UI ---
 st.set_page_config(layout="wide")
-st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
+st.title("🧪 레시피 예측 모델")
 
 # 모델 로드
 model, name_encoder, surrogate = load_all_models(CONFIG)
 
 if model and name_encoder and surrogate:
-    st.success(f"모델 로드 완료! (안료 개수: {len(CONFIG['recipe_cols'])})")
+    # st.success(f"모델 로드 완료! (안료 개수: {len(CONFIG['recipe_cols'])})")
 
     st.header("1. 목표 색상 정보 업로드")
 
@@ -431,7 +431,7 @@ if model and name_encoder and surrogate:
         if not df_sce.empty:
             st.header("2. 목표 색상 선택")
             selected_color_name_from_box = st.selectbox(
-                f"'SCE' 기준 총 {len(df_sce)}개의 유효 데이터 로드됨. 예측할 색상 선택:",
+                f"'SCE' 기준 총 {len(df_sce)}개의 색상이 로드되었습니다. 예측할 색상을 선택하세요",
                 options=df_sce['Color Name'], key='color_selector',
                 index=list(df_sce['Color Name']).index(st.session_state.selected_color) if st.session_state.selected_color in list(df_sce['Color Name']) else 0
             )
@@ -446,21 +446,22 @@ if model and name_encoder and surrogate:
                 st.subheader(f"'{current_selected_color}' 데이터 확인")
                 lab_true_np = selected_row[CONFIG['lab_cols']].values.astype(float)
                 spectrum_true_np = selected_row[CONFIG['spectrum_cols']].values.astype(float)
-                col1, col2, col3 = st.columns([0.4, 0.2, 0.4])
+                col1, col2, col3 = st.columns([0.45, 0.4, 0.15])
                 with col1: # Lab 정보
                     st.write("**목표 색상 정보:**")
                     st.text_input("Color Name", value=current_selected_color, disabled=True, key=f"name_display_{current_selected_color}")
                     st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_display_{current_selected_color}")
                     st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True, key=f"a_display_{current_selected_color}")
                     st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_display_{current_selected_color}")
+                with col3: # 스펙트럼 정보
+                    st.write("**스펙트럼 정보:**")
+                    spectrum_df = pd.DataFrame({'파장 (Wavelength)': CONFIG['spectrum_cols'], '값 (Value)': spectrum_true_np})
+                    st.dataframe(spectrum_df, height=320)
                 with col2: # 색상 시각화
                     st.write("**Target Color:**")
                     fig = show_single_color_patch(lab_true_np, title="Target (True)")
                     st.pyplot(fig)
-                with col3: # 스펙트럼 정보
-                    st.write("**스펙트럼 정보:**")
-                    spectrum_df = pd.DataFrame({'파장 (Wavelength)': CONFIG['spectrum_cols'], '값 (Value)': spectrum_true_np})
-                    st.dataframe(spectrum_df, height=270)
+                
 
                 # --- 예측 버튼 ---
                 st.header("3. 예측 실행")
