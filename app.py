@@ -389,7 +389,7 @@ if model and name_encoder and surrogate:
                 st.text_input("Color Name", value=selected_color_name, disabled=True)
                 
                 # ⭐️ [레이아웃 변경] 요청 1: Lab값과 색상 시각화를 가로로 배치
-                sub_col1, sub_col2 = st.columns([0.6, 0.4]) # 60% / 40% 비율
+                sub_col1, sub_col2 = st.columns([0.5, 0.5]) # 60% / 40% 비율
                 
                 with sub_col1:
                     st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_{selected_color_name}")
