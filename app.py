@@ -453,11 +453,11 @@ if model and name_encoder and surrogate:
                     st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_display_{current_selected_color}")
                     st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True, key=f"a_display_{current_selected_color}")
                     st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_display_{current_selected_color}")
-                with col3: # 스펙트럼 정보
+                with col2: # 스펙트럼 정보
                     st.write("**스펙트럼 정보:**")
                     spectrum_df = pd.DataFrame({'파장 (Wavelength)': CONFIG['spectrum_cols'], '값 (Value)': spectrum_true_np})
                     st.dataframe(spectrum_df, height=320)
-                with col2: # 색상 시각화
+                with col3: # 색상 시각화
                     st.write("**Target Color:**")
                     fig = show_single_color_patch(lab_true_np, title="Target (True)")
                     st.pyplot(fig)
