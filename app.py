@@ -383,7 +383,7 @@ if model and name_encoder and surrogate:
             spectrum_true_np = selected_row[CONFIG['spectrum_cols']].values.astype(float)
             
             # ⭐️ [레이아웃 변경] 3단 컬럼 레이아웃으로 수정
-            col1, col2, col3 = st.columns([0.4, 0.2, 0.4]) # 40% / 20% / 40% 비율
+            col1, col2, col3 = st.columns([0.4, 0.4, 0.2]) # 40% / 20% / 40% 비율
             
             with col1:
                 st.write("**목표 색상 정보:**")
@@ -393,12 +393,6 @@ if model and name_encoder and surrogate:
                 st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_{selected_color_name}")
             
             with col2:
-                st.write("**Target Color:**")
-                # ⭐️ 크기 조절 함수(show_single_color_patch)는 이전 버전을 그대로 사용
-                fig = show_single_color_patch(lab_true_np, title="Target (True)")
-                st.pyplot(fig)
-
-            with col3:
                 st.write("**스펙트럼 정보:**")
                 spectrum_df = pd.DataFrame({
                     '파장 (Wavelength)': CONFIG['spectrum_cols'],
@@ -406,6 +400,13 @@ if model and name_encoder and surrogate:
                 })
                 # ⭐️ Lab 값 표시부(col1)와 높이를 맞추기 위해 height=270 (조절 가능)
                 st.dataframe(spectrum_df, height=270) 
+
+            with col3:
+                st.write("**Target Color:**")
+                # ⭐️ 크기 조절 함수(show_single_color_patch)는 이전 버전을 그대로 사용
+                fig = show_single_color_patch(lab_true_np, title="Target (True)")
+                st.pyplot(fig)
+
 
             # --- 3. 예측 실행 버튼 ---
             st.header("3. 예측 실행")
