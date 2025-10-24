@@ -289,7 +289,7 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
     # 2. 표시할 레시피 결정 (상위 6개 또는 전체)
     if len(recipe_filtered) > 6:
         recipe_to_display_series = recipe_filtered.head(6)
-        st.caption(f"함량이 0.01 g/K 이상인 {len(recipe_filtered)}개의 안료 중 상위 6개만 표시됩니다.")
+        # st.caption(f"함량이 0.01 g/K 이상인 {len(recipe_filtered)}개의 안료 중 상위 6개만 표시됩니다.")
     else:
         recipe_to_display_series = recipe_filtered
 
