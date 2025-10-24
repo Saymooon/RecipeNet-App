@@ -149,10 +149,9 @@ def show_color_patches(lab_true, lab_pred):
     ax[1].imshow([[rgb_pred]]); ax[1].set_title("Predicted (Surrogate)"); ax[1].axis("off")
     return fig # ⭐️ st.pyplot()을 위해 fig 객체 반환
 
-# ⭐️ [크기 수정] 요청 1을 위한 단일 색상 시각화 함수 (figsize 수정)
 def show_single_color_patch(lab_color, title="Color"):
     """Streamlit용 단일 색상 차트 생성"""
-    # ⭐️ figsize를 (2.5, 1.8) 정도로 작게 수정
+    # ⭐️ figsize를 (2.5, 1.8) 정도로 작게 수정 (이전과 동일)
     fig, ax = plt.subplots(figsize=(2.5, 1.8)) 
     rgb_color = lab_to_rgb(lab_color)
     ax.imshow([[rgb_color]])
@@ -383,32 +382,30 @@ if model and name_encoder and surrogate:
             lab_true_np = selected_row[CONFIG['lab_cols']].values.astype(float)
             spectrum_true_np = selected_row[CONFIG['spectrum_cols']].values.astype(float)
             
-            col1, col2 = st.columns(2)
+            # ⭐️ [레이아웃 변경] 3단 컬럼 레이아웃으로 수정
+            col1, col2, col3 = st.columns([0.4, 0.2, 0.4]) # 40% / 20% / 40% 비율
             
             with col1:
-                st.text_input("Color Name", value=selected_color_name, disabled=True)
-                
-                # ⭐️ [레이아웃 변경] 요청 1: Lab값과 색상 시각화를 가로로 배치
-                sub_col1, sub_col2 = st.columns([0.7, 0.3]) # 60% / 40% 비율
-                
-                with sub_col1:
-                    st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_{selected_color_name}")
-                    st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True, key=f"a_{selected_color_name}")
-                    st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_{selected_color_name}")
-                
-                with sub_col2:
-                    # ⭐️ [크기 조절] 목표 색상 시각화
-                    st.write("**Target Color:**")
-                    fig = show_single_color_patch(lab_true_np, title="Target (True)")
-                    st.pyplot(fig)
-
+                st.write("**목표 색상 정보:**")
+                st.text_input("Color Name", value=selected_color_name, disabled=True, key=f"name_{selected_color_name}")
+                st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_{selected_color_name}")
+                st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True, key=f"a_{selected_color_name}")
+                st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_{selected_color_name}")
+            
             with col2:
+                st.write("**Target Color:**")
+                # ⭐️ 크기 조절 함수(show_single_color_patch)는 이전 버전을 그대로 사용
+                fig = show_single_color_patch(lab_true_np, title="Target (True)")
+                st.pyplot(fig)
+
+            with col3:
                 st.write("**스펙트럼 정보:**")
                 spectrum_df = pd.DataFrame({
                     '파장 (Wavelength)': CONFIG['spectrum_cols'],
                     '값 (Value)': spectrum_true_np
                 })
-                st.dataframe(spectrum_df, height=350) # 높이 조절
+                # ⭐️ Lab 값 표시부(col1)와 높이를 맞추기 위해 height=270 (조절 가능)
+                st.dataframe(spectrum_df, height=270) 
 
             # --- 3. 예측 실행 버튼 ---
             st.header("3. 예측 실행")
