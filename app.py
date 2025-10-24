@@ -249,24 +249,40 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
 
     # --- 테이블 2: 안료 (PIGMENT, 함량) ---
     
-    # 0이 아닌 값만 필터링 (Top 10 제한 제거)
-    recipe_nonzero = recipe_g_series[recipe_g_series > 0.01].sort_values(ascending=False)
-    
-    if recipe_nonzero.empty:
-        st.warning("예측된 레시피에 유의미한 안료가 없습니다.")
+    # ⭐️ [필터링 로직 수정]
+    # 1. 0.01 이상 필터링 & 내림차순 정렬
+    recipe_filtered = recipe_g_series[recipe_g_series >= 0.01].sort_values(ascending=False)
+
+    # 2. 표시할 레시피 결정 (상위 6개 또는 전체)
+    if len(recipe_filtered) > 6:
+        recipe_to_display = recipe_filtered.head(6)
+        st.caption(f"함량이 0.01 g/K 이상인 {len(recipe_filtered)}개의 안료 중 상위 6개만 표시됩니다.")
     else:
-        # DataFrame으로 변환
-        recipe_df = pd.DataFrame({
-            'PIGMENT': recipe_nonzero.index,
-            '함량 (g/K)': recipe_nonzero.values
+        recipe_to_display = recipe_filtered
+
+    # 3. 화면 표시 및 다운로드용 데이터 준비
+    if recipe_to_display.empty:
+        st.warning("예측된 레시피 중 함량이 0.01 g/K 이상인 안료가 없습니다.")
+        # 다운로드용 DataFrame도 비어 있게 만듦
+        recipe_df_for_download = pd.DataFrame({'PIGMENT': [], '함량 (g/K)': []})
+    else:
+        # DataFrame으로 변환 (화면 표시용)
+        recipe_df_display = pd.DataFrame({
+            'PIGMENT': recipe_to_display.index,
+            '함량 (g/K)': recipe_to_display.values
         }).reset_index(drop=True)
-        
-        # 소수점 4자리까지만 표시
+
+        # 소수점 4자리까지만 화면에 표시
         st.dataframe(
-            recipe_df.style.format({'함량 (g/K)': '{:.4f}'}),
+            recipe_df_display.style.format({'함량 (g/K)': '{:.4f}'}),
             hide_index=True,
             use_container_width=True
         )
+        # 다운로드용 DataFrame은 0.01 이상 필터링된 전체 데이터 사용
+        recipe_df_for_download = pd.DataFrame({
+            'PIGMENT': recipe_filtered.index,
+            '함량 (g/K)': recipe_filtered.values
+        }).reset_index(drop=True)
 
     st.divider() # 가로줄 추가
 
