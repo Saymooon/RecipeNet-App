@@ -383,7 +383,7 @@ if model and name_encoder and surrogate:
             spectrum_true_np = selected_row[CONFIG['spectrum_cols']].values.astype(float)
             
             # ⭐️ [레이아웃 변경] 3단 컬럼 레이아웃으로 수정
-            col1, col2, col3 = st.columns([0.4, 0.4, 0.2]) # 40% / 20% / 40% 비율
+            col1, col2, col3 = st.columns([0.3, 0.5, 0.1]) # 40% / 20% / 40% 비율
             
             with col1:
                 st.write("**목표 색상 정보:**")
