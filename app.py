@@ -149,13 +149,14 @@ def show_color_patches(lab_true, lab_pred):
     ax[1].imshow([[rgb_pred]]); ax[1].set_title("Predicted (Surrogate)"); ax[1].axis("off")
     return fig # ⭐️ st.pyplot()을 위해 fig 객체 반환
 
-# ⭐️ [신규 추가] 요청 1을 위한 단일 색상 시각화 함수
+# ⭐️ [크기 수정] 요청 1을 위한 단일 색상 시각화 함수 (figsize 수정)
 def show_single_color_patch(lab_color, title="Color"):
     """Streamlit용 단일 색상 차트 생성"""
-    fig, ax = plt.subplots(figsize=(3, 2)) # 1x1 크기
+    # ⭐️ figsize를 (2.5, 1.8) 정도로 작게 수정
+    fig, ax = plt.subplots(figsize=(2.5, 1.8)) 
     rgb_color = lab_to_rgb(lab_color)
     ax.imshow([[rgb_color]])
-    ax.set_title(title)
+    ax.set_title(title, fontsize=10) # 폰트 크기도 살짝 조절
     ax.axis("off")
     return fig
 
@@ -230,6 +231,13 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
     # ---- Streamlit 출력
     recipe_g_series = pd.Series(P_g.flatten(), index=cfg['recipe_cols'])
     
+    # ⭐️ [순서 변경] 요청 2: 레시피 테이블을 먼저 표시
+    st.subheader("🔬 예측된 레시피 (g 단위, Top 10)")
+    # 0이 아닌 값만 필터링 후 상위 10개
+    recipe_nonzero = recipe_g_series[recipe_g_series > 1e-4]
+    st.dataframe(recipe_nonzero.sort_values(ascending=False).head(10))
+
+    # ⭐️ [순서 변경] 예측 결과 및 색상 비교를 나중에 표시
     st.subheader("📊 예측 결과")
     
     col1, col2 = st.columns(2)
@@ -240,14 +248,9 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
 
     with col2:
         st.write("**색상 비교:**")
-        # ⭐️ True vs Pred 비교 함수 사용
         fig = show_color_patches(lab_true.flatten(), lab_pred.flatten())
         st.pyplot(fig)
 
-    st.subheader("🔬 예측된 레시피 (g 단위, Top 10)")
-    # 0이 아닌 값만 필터링 후 상위 10개
-    recipe_nonzero = recipe_g_series[recipe_g_series > 1e-4]
-    st.dataframe(recipe_nonzero.sort_values(ascending=False).head(10))
 
 # ==========================================================
 # 5. 모델 로드 (Streamlit 캐시 사용)
@@ -275,7 +278,6 @@ def load_all_models(config):
         return None, None, None
         
     # 3. PyTorch 모델 (RecipeNet3Head) 로드
-    # 뼈대(구조)를 먼저 만들고, 가중치(state_dict)를 덮어씁니다.
     try:
         in_dim = len(config['spectrum_cols']) + len(config['lab_cols']) + config['embed_dim']
         num_pigments = len(config['recipe_cols'])
@@ -294,10 +296,10 @@ def load_all_models(config):
     return model, name_encoder, surrogate
 
 # ==========================================================
-# 6. Streamlit UI (메인 앱 로직) - ⭐️ [전면 수정됨]
+# 6. Streamlit UI (메인 앱 로직)
 # ==========================================================
 
-# --- ⭐️ [수정됨] 엑셀 파일 처리 함수 (요청 2: 여러 행 처리) ---
+# --- 엑셀 파일 처리 함수 (이전과 동일) ---
 @st.cache_data # 👈 파일을 다시 올리지 않는 한, 파싱 결과를 캐시합니다.
 def parse_excel(uploaded_file, config):
     """
@@ -307,37 +309,30 @@ def parse_excel(uploaded_file, config):
     try:
         df = pd.read_excel(uploaded_file)
         
-        # 1. '정반사광 처리' 컬럼 확인
         filter_col = '정반사광 처리'
         if filter_col not in df.columns:
             st.error(f"엑셀 파일 오류: '{filter_col}' 컬럼을 찾을 수 없습니다.")
             return None
             
-        # 2. 'SCE'로 필터링
-        sce_df = df[df[filter_col] == 'SCE'].copy() # 👈 .copy()로 경고 방지
+        sce_df = df[df[filter_col] == 'SCE'].copy()
         
-        # 3. 'SCE' 데이터 확인
         if sce_df.empty:
             st.error(f"엑셀 파일 오류: '{filter_col}' 컬럼에 'SCE' 값을 가진 행이 없습니다.")
             return None
             
-        # 4. Color Name 추출 (사용자 로직: '데이터 이름' 컬럼, [4:] 슬라이싱)
         name_col = '데이터 이름'
         if name_col not in sce_df.columns:
             st.error(f"엑셀 파일 오류: '{name_col}' 컬럼을 찾을 수 없습니다.")
             return None
         
-        # ⭐️ 새로운 키(Key) 컬럼 'Color Name' 생성
         sce_df['Color Name'] = sce_df[name_col].astype(str).str[4:]
         
-        # 5. 필수 컬럼 (Lab + Spectrum) 모두 있는지 확인
         required_cols = config['lab_cols'] + config['spectrum_cols']
         missing_cols = [col for col in required_cols if col not in sce_df.columns]
         if missing_cols:
             st.error(f"엑셀 파일 오류: 다음 필수 컬럼을 찾을 수 없습니다: {', '.join(missing_cols)}")
             return None
 
-        # 6. 필요한 컬럼만 추출하여 반환 (인덱스 리셋 포함)
         final_cols = ['Color Name'] + config['lab_cols'] + config['spectrum_cols']
         return sce_df[final_cols].reset_index(drop=True)
 
@@ -345,7 +340,7 @@ def parse_excel(uploaded_file, config):
         st.error(f"엑셀 파일 처리 중 오류 발생: {e}")
         return None
 
-# --- ⭐️ [수정됨] 메인 UI ---
+# --- 메인 UI ---
 st.set_page_config(layout="wide")
 st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
 
@@ -357,40 +352,34 @@ if model and name_encoder and surrogate:
 
     st.header("1. 목표 색상 정보 업로드")
     
-    # --- 엑셀 파일 업로더 ---
     uploaded_file = st.file_uploader(
         "목표 색상 엑셀 파일 업로드 (xlsx)", 
         type=["xlsx"],
         help="파일 내 '정반사광 처리' 컬럼의 'SCE' 행 데이터를 모두 불러옵니다."
     )
 
-    # ⭐️ 세션 상태(Session State)를 사용하여 업로드된 DataFrame 저장
     if 'sce_data' not in st.session_state:
         st.session_state.sce_data = None
 
     if uploaded_file is not None:
-        # 파일이 업로드되면, 파싱하여 DataFrame을 세션에 저장
         st.session_state.sce_data = parse_excel(uploaded_file, CONFIG)
 
-    # --- ⭐️ [수정됨] 업로드된 데이터 목록 및 선택 UI (요청 2) ---
+    # --- 업로드된 데이터 목록 및 선택 UI ---
     if st.session_state.sce_data is not None:
         df_sce = st.session_state.sce_data
         st.header("2. 목표 색상 선택")
         
-        # ⭐️ 'Color Name' 컬럼을 Selectbox의 옵션으로 사용
         selected_color_name = st.selectbox(
             f"'SCE' 기준 총 {len(df_sce)}개의 데이터가 로드되었습니다. 예측할 색상을 선택하세요.",
             options=df_sce['Color Name']
         )
         
         if selected_color_name:
-            # ⭐️ 선택된 이름에 해당하는 '행(Series)'을 찾음
             selected_row = df_sce[df_sce['Color Name'] == selected_color_name].iloc[0]
             
-            # --- ⭐️ [수정됨] 선택된 데이터 확인 (요청 1: 목표색상 시각화 포함) ---
+            # --- 선택된 데이터 확인 ---
             st.subheader(f"'{selected_color_name}' 데이터 확인")
             
-            # 데이터 추출
             lab_true_np = selected_row[CONFIG['lab_cols']].values.astype(float)
             spectrum_true_np = selected_row[CONFIG['spectrum_cols']].values.astype(float)
             
@@ -398,14 +387,20 @@ if model and name_encoder and surrogate:
             
             with col1:
                 st.text_input("Color Name", value=selected_color_name, disabled=True)
-                st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True)
-                st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True)
-                st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True)
                 
-                # ⭐️ [요청 1 해결] 목표 색상(True) 즉시 시각화
-                st.write("**목표 색상 시각화:**")
-                fig = show_single_color_patch(lab_true_np, title="Target (True)")
-                st.pyplot(fig)
+                # ⭐️ [레이아웃 변경] 요청 1: Lab값과 색상 시각화를 가로로 배치
+                sub_col1, sub_col2 = st.columns([0.6, 0.4]) # 60% / 40% 비율
+                
+                with sub_col1:
+                    st.text_input(f"{CONFIG['lab_cols'][0]}", value=f"{lab_true_np[0]:.2f}", disabled=True, key=f"l_{selected_color_name}")
+                    st.text_input(f"{CONFIG['lab_cols'][1]}", value=f"{lab_true_np[1]:.2f}", disabled=True, key=f"a_{selected_color_name}")
+                    st.text_input(f"{CONFIG['lab_cols'][2]}", value=f"{lab_true_np[2]:.2f}", disabled=True, key=f"b_{selected_color_name}")
+                
+                with sub_col2:
+                    # ⭐️ [크기 조절] 목표 색상 시각화
+                    st.write("**Target Color:**")
+                    fig = show_single_color_patch(lab_true_np, title="Target (True)")
+                    st.pyplot(fig)
 
             with col2:
                 st.write("**스펙트럼 정보:**")
@@ -413,7 +408,7 @@ if model and name_encoder and surrogate:
                     '파장 (Wavelength)': CONFIG['spectrum_cols'],
                     '값 (Value)': spectrum_true_np
                 })
-                st.dataframe(spectrum_df, height=350)
+                st.dataframe(spectrum_df, height=350) # 높이 조절
 
             # --- 3. 예측 실행 버튼 ---
             st.header("3. 예측 실행")
