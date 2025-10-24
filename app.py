@@ -280,8 +280,8 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
         )
         # 다운로드용 DataFrame은 0.01 이상 필터링된 전체 데이터 사용
         recipe_df_for_download = pd.DataFrame({
-            'PIGMENT': recipe_filtered.index,
-            '함량 (g/K)': recipe_filtered.head(6)
+            'PIGMENT': recipe_to_display.index,
+            '함량 (g/K)': recipe_to_display.values
         }).reset_index(drop=True)
 
     st.divider() # 가로줄 추가
