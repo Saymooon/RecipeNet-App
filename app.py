@@ -399,7 +399,7 @@ if model and name_encoder and surrogate:
                     '값 (Value)': spectrum_true_np
                 })
                 # ⭐️ Lab 값 표시부(col1)와 높이를 맞추기 위해 height=270 (조절 가능)
-                st.dataframe(spectrum_df, height=300) 
+                st.dataframe(spectrum_df, height=320) 
 
             with col3:
                 st.write("**Target Color:**")
