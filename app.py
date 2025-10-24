@@ -11,7 +11,6 @@ from typing import List, Dict, Optional
 from skimage import color # requirements.txt에 'scikit-image'가 있어야 합니다.
 import matplotlib.pyplot as plt
 from datetime import datetime # ⭐️ [추가] DATE 표시를 위해 import
-from io import BytesIO # 엑셀 다운로드를 위해 import
 
 # ==========================================================
 # 0. CONFIG (Jupyter Notebook에서 정확하게 복사)
@@ -257,38 +256,33 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
     # 2. 표시할 레시피 결정 (상위 6개 또는 전체)
     if len(recipe_filtered) > 6:
         recipe_to_display = recipe_filtered.head(6)
-        st.caption(f"함량이 0.01 g/K 이상인 {len(recipe_filtered)}개의 안료 중 상위 6개만 표시됩니다.")
+        # st.caption(f"함량이 0.01 g/K 이상인 {len(recipe_filtered)}개의 안료 중 상위 6개만 표시됩니다.")
     else:
         recipe_to_display = recipe_filtered
 
     # 3. 화면 표시 및 다운로드용 데이터 준비
     if recipe_to_display.empty:
         st.warning("예측된 레시피 중 함량이 0.01 g/K 이상인 안료가 없습니다.")
-        # ⭐️ 다운로드용 DataFrame도 비어 있게 만듦
-        recipe_df_for_download_and_display = pd.DataFrame({'PIGMENT': [], '함량 (g/K)': []})
+        # 다운로드용 DataFrame도 비어 있게 만듦
+        recipe_df_for_download = pd.DataFrame({'PIGMENT': [], '함량 (g/K)': []})
     else:
-        # ⭐️ DataFrame으로 변환 (화면 표시 및 다운로드 공통 사용)
-        recipe_df_for_download_and_display = pd.DataFrame({
+        # DataFrame으로 변환 (화면 표시용)
+        recipe_df_display = pd.DataFrame({
             'PIGMENT': recipe_to_display.index,
             '함량 (g/K)': recipe_to_display.values
         }).reset_index(drop=True)
 
         # 소수점 4자리까지만 화면에 표시
         st.dataframe(
-            recipe_df_for_download_and_display.style.format({'함량 (g/K)': '{:.4f}'}),
+            recipe_df_display.style.format({'함량 (g/K)': '{:.4f}'}),
             hide_index=True,
             use_container_width=True
         )
-
-    # ⭐️ [다운로드 로직 수정] 화면 표시용 DataFrame을 엑셀로 변환
-    excel_data = to_excel(recipe_df_for_download_and_display)
-    st.download_button(
-        # ⭐️ 버튼 레이블 수정
-        label="📄 표시된 레시피 엑셀 다운로드 (.xlsx)",
-        data=excel_data,
-        file_name=f'predicted_recipe_{color_name.replace(" ", "_")}.xlsx',
-        mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
+        # 다운로드용 DataFrame은 0.01 이상 필터링된 전체 데이터 사용
+        recipe_df_for_download = pd.DataFrame({
+            'PIGMENT': recipe_filtered.index,
+            '함량 (g/K)': recipe_filtered.values
+        }).reset_index(drop=True)
 
     st.divider() # 가로줄 추가
 
