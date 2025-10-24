@@ -10,6 +10,7 @@ import math
 from typing import List, Dict, Optional
 from skimage import color # requirements.txt에 'scikit-image'가 있어야 합니다.
 import matplotlib.pyplot as plt
+from datetime import datetime # ⭐️ [추가] DATE 표시를 위해 import
 
 # ==========================================================
 # 0. CONFIG (Jupyter Notebook에서 정확하게 복사)
@@ -151,11 +152,10 @@ def show_color_patches(lab_true, lab_pred):
 
 def show_single_color_patch(lab_color, title="Color"):
     """Streamlit용 단일 색상 차트 생성"""
-    # ⭐️ figsize를 (2.5, 1.8) 정도로 작게 수정 (이전과 동일)
     fig, ax = plt.subplots(figsize=(2.5, 1.8)) 
     rgb_color = lab_to_rgb(lab_color)
     ax.imshow([[rgb_color]])
-    ax.set_title(title, fontsize=10) # 폰트 크기도 살짝 조절
+    ax.set_title(title, fontsize=10) 
     ax.axis("off")
     return fig
 
@@ -192,6 +192,7 @@ def deltaE_00(y_true, y_pred, kL=1, kC=1, kH=1):
 # ==========================================================
 # 4. 추론 함수 (test_new_swatch -> Streamlit용으로 수정)
 # ==========================================================
+# ⭐️ [수정됨] 이 함수 전체가 수정되었습니다.
 def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder):
     """
     Streamlit 입력값을 받아 예측을 수행하고 결과를 출력/반환합니다.
@@ -218,7 +219,7 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
             else:
                 chunks.append(others[:,k:k+1]); k+=1
         p = torch.cat(chunks,dim=1)
-        P_g = (p*t).cpu().numpy() # g 단위
+        P_g = (p*t).cpu().numpy() # g 단위 (g/K로 가정)
 
     # ---- Surrogate 예측
     lab_pred = surrogate.predict(P_g)
@@ -230,22 +231,55 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
     # ---- Streamlit 출력
     recipe_g_series = pd.Series(P_g.flatten(), index=cfg['recipe_cols'])
     
-    # ⭐️ [순서 변경] 요청 2: 레시피 테이블을 먼저 표시
-    st.subheader("🔬 예측된 레시피 (g 단위, Top 10)")
-    # 0이 아닌 값만 필터링 후 상위 10개
-    recipe_nonzero = recipe_g_series[recipe_g_series > 1e-4]
-    st.dataframe(recipe_nonzero.sort_values(ascending=False).head(10))
+    # ⭐️ [UI 변경] 요청: 엑셀 스타일로 레시피 출력 (요청 2: 순서 변경)
+    st.subheader("🔬 예측된 레시피")
+
+    # --- 테이블 1: 정보 (COLOR, DATE) ---
+    col1_info, col2_info, col_spacer = st.columns([0.4, 0.4, 0.2])
+    with col1_info:
+        # st.text_input("COLOR", value=color_name, disabled=True)
+        st.markdown("**COLOR**")
+        st.markdown(f"<div style='font-size: 1.25rem; font-weight: bold; border: 1px solid #eee; padding: 8px; border-radius: 0.25rem; background-color: #fafafa;'>{color_name}</div>", unsafe_allow_html=True)
+    with col2_info:
+        # st.text_input("DATE", value=datetime.now().strftime('%Y-%m-%d'), disabled=True)
+        st.markdown("**DATE**")
+        st.markdown(f"<div style='font-size: 1.25rem; font-weight: bold; border: 1px solid #eee; padding: 8px; border-radius: 0.25rem; background-color: #fafafa;'>{datetime.now().strftime('%Y-%m-%d')}</div>", unsafe_allow_html=True)
+
+    st.divider() # 가로줄 추가
+
+    # --- 테이블 2: 안료 (PIGMENT, 함량) ---
+    
+    # 0이 아닌 값만 필터링 (Top 10 제한 제거)
+    recipe_nonzero = recipe_g_series[recipe_g_series > 1e-4].sort_values(ascending=False)
+    
+    if recipe_nonzero.empty:
+        st.warning("예측된 레시피에 유의미한 안료가 없습니다.")
+    else:
+        # DataFrame으로 변환
+        recipe_df = pd.DataFrame({
+            'PIGMENT': recipe_nonzero.index,
+            '함량 (g/K)': recipe_nonzero.values
+        }).reset_index(drop=True)
+        
+        # 소수점 4자리까지만 표시
+        st.dataframe(
+            recipe_df.style.format({'함량 (g/K)': '{:.4f}'}),
+            hide_index=True,
+            use_container_width=True
+        )
+
+    st.divider() # 가로줄 추가
 
     # ⭐️ [순서 변경] 예측 결과 및 색상 비교를 나중에 표시
     st.subheader("📊 예측 결과")
     
-    col1, col2 = st.columns(2)
-    with col1:
+    col1_res, col2_res = st.columns(2)
+    with col1_res:
         st.metric(label="Predicted ΔE00", value=f"{de00.mean():.3f}")
         st.write(f"**True Lab:** {np.round(lab_true.flatten(), 2)}")
         st.write(f"**Pred Lab:** {np.round(lab_pred.flatten(), 2)}")
 
-    with col2:
+    with col2_res:
         st.write("**색상 비교:**")
         fig = show_color_patches(lab_true.flatten(), lab_pred.flatten())
         st.pyplot(fig)
@@ -376,7 +410,7 @@ if model and name_encoder and surrogate:
         if selected_color_name:
             selected_row = df_sce[df_sce['Color Name'] == selected_color_name].iloc[0]
             
-            # --- 선택된 데이터 확인 ---
+            # --- 선택된 데이터 확인 (3단 레이아웃 - 이전과 동일) ---
             st.subheader(f"'{selected_color_name}' 데이터 확인")
             
             lab_true_np = selected_row[CONFIG['lab_cols']].values.astype(float)
@@ -406,7 +440,6 @@ if model and name_encoder and surrogate:
                 # ⭐️ 크기 조절 함수(show_single_color_patch)는 이전 버전을 그대로 사용
                 fig = show_single_color_patch(lab_true_np, title="Target (True)")
                 st.pyplot(fig)
-
 
             # --- 3. 예측 실행 버튼 ---
             st.header("3. 예측 실행")
