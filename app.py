@@ -250,7 +250,7 @@ def run_inference(model, cfg, surrogate, spectrum, lab, color_name, name_encoder
     # --- 테이블 2: 안료 (PIGMENT, 함량) ---
     
     # 0이 아닌 값만 필터링 (Top 10 제한 제거)
-    recipe_nonzero = recipe_g_series[recipe_g_series > 1e-4].sort_values(ascending=False)
+    recipe_nonzero = recipe_g_series[recipe_g_series > 0.01].sort_values(ascending=False)
     
     if recipe_nonzero.empty:
         st.warning("예측된 레시피에 유의미한 안료가 없습니다.")
