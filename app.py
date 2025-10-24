@@ -375,13 +375,13 @@ def parse_excel(uploaded_file, config):
 
 # --- 메인 UI ---
 st.set_page_config(layout="wide")
-st.title("🧪 레시피 예측 모델 (RecipeNet3Head)")
+st.title("🧪 레시피 예측 모델")
 
 # 모델 로드
 model, name_encoder, surrogate = load_all_models(CONFIG)
 
 if model and name_encoder and surrogate:
-    st.success(f"모델 로드 완료! (안료 개수: {len(CONFIG['recipe_cols'])})")
+    # st.success(f"모델 로드 완료! (안료 개수: {len(CONFIG['recipe_cols'])})")
 
     st.header("1. 목표 색상 정보 업로드")
     
